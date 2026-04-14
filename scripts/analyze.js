@@ -7,7 +7,6 @@ const OUTPUT_DIR = {
   data: path.join(SKILL_BASE, 'data'),
   reports: path.join(SKILL_BASE, 'reports'),
   charts: path.join(SKILL_BASE, 'charts'),
-  tmp: path.join(SKILL_BASE, 'tmp'),
 };
 
 function ts() {
@@ -22,37 +21,6 @@ function cleanNum(val) {
   if (!val || val === '-') return 0;
   const n = parseFloat(String(val).replace(/[$,%，,\s]/g, '').trim());
   return Number.isFinite(n) ? n : 0;
-}
-
-function parseCSVLine(line) {
-  const result = [];
-  let current = '';
-  let inQuotes = false;
-
-  for (let i = 0; i < line.length; i++) {
-    const c = line[i];
-
-    if (c === '"') {
-      if (inQuotes && line[i + 1] === '"') {
-        current += '"';
-        i++;
-      } else {
-        inQuotes = !inQuotes;
-      }
-      continue;
-    }
-
-    if (c === ',' && !inQuotes) {
-      result.push(current.trim());
-      current = '';
-      continue;
-    }
-
-    current += c;
-  }
-
-  result.push(current.trim());
-  return result;
 }
 
 function parseCSV(content) {
@@ -146,15 +114,33 @@ function loadCSV(csvPath) {
   return rows;
 }
 
+function pickValue(row, keys) {
+  for (const key of keys) {
+    if (row[key] !== undefined && row[key] !== null && String(row[key]).trim() !== '') {
+      return row[key];
+    }
+  }
+  return '';
+}
+
+function bandLabel(price) {
+  if (price < 10) return '<$10';
+  if (price < 20) return '$10-$19.99';
+  if (price < 30) return '$20-$29.99';
+  if (price < 50) return '$30-$49.99';
+  return '$50+';
+}
+
 function analyze(rows) {
   const enriched = rows.map((row) => ({
-    asin: row.ASIN || '',
-    brand: row['品牌'] || 'Unknown',
-    title: row['商品标题'] || '',
-    price: cleanNum(row['价格'] || row['价格($)']),
-    revenue: cleanNum(row['月销售额'] || row['月销售额($)']),
-    sales: cleanNum(row['月销量']),
-    days: cleanNum(row['上架天数']),
+    asin: pickValue(row, ['ASIN', 'asin']),
+    brand: pickValue(row, ['品牌', 'Brand', 'brand']) || 'Unknown',
+    title: pickValue(row, ['商品标题', '标题', 'Title', 'title']),
+    price: cleanNum(pickValue(row, ['价格', '价格($)', 'Price', 'Price($)', 'price'])),
+    revenue: cleanNum(pickValue(row, ['月销售额', '月销售额($)', 'Monthly Revenue', 'Revenue', 'revenue'])),
+    sales: cleanNum(pickValue(row, ['月销量', 'Monthly Sales', 'sales'])),
+    days: cleanNum(pickValue(row, ['上架天数', 'Days Listed', 'days'])),
+    rating: cleanNum(pickValue(row, ['评分', 'Rating', 'rating'])),
   }));
 
   const totalRevenue = enriched.reduce((sum, item) => sum + item.revenue, 0);
@@ -172,6 +158,43 @@ function analyze(rows) {
     .sort((a, b) => b.revenue - a.revenue)
     .slice(0, 20);
 
+  const brandMap = new Map();
+  enriched.forEach((item) => {
+    const key = item.brand || 'Unknown';
+    if (!brandMap.has(key)) {
+      brandMap.set(key, { brand: key, skuCount: 0, revenue: 0, sales: 0 });
+    }
+    const current = brandMap.get(key);
+    current.skuCount += 1;
+    current.revenue += item.revenue;
+    current.sales += item.sales;
+  });
+  const topBrands = [...brandMap.values()]
+    .sort((a, b) => b.revenue - a.revenue)
+    .slice(0, 10);
+
+  const bandMap = new Map();
+  enriched.forEach((item) => {
+    const label = bandLabel(item.price);
+    if (!bandMap.has(label)) {
+      bandMap.set(label, { band: label, skuCount: 0, totalRevenue: 0, sampleTitles: [] });
+    }
+    const current = bandMap.get(label);
+    current.skuCount += 1;
+    current.totalRevenue += item.revenue;
+    if (item.title && current.sampleTitles.length < 5) {
+      current.sampleTitles.push(item.title);
+    }
+  });
+  const bandOrder = ['<$10', '$10-$19.99', '$20-$29.99', '$30-$49.99', '$50+'];
+  const priceBands = bandOrder
+    .map((label) => bandMap.get(label))
+    .filter(Boolean)
+    .map((item) => ({
+      ...item,
+      avgRevenuePerSku: item.skuCount ? item.totalRevenue / item.skuCount : 0,
+    }));
+
   return {
     generatedAt: new Date().toISOString(),
     sourceRowCount: rows.length,
@@ -180,12 +203,23 @@ function analyze(rows) {
       totalRevenue,
       totalSales,
       avgPrice,
+      avgRating: enriched.length
+        ? enriched.reduce((sum, item) => sum + item.rating, 0) / enriched.length
+        : 0,
     },
+    brandLandscape: {
+      topBrands,
+    },
+    priceBandOpportunities: priceBands,
     topProducts,
     recentProducts,
     titleCorpus: {
       topTitles: topProducts.map((item) => item.title).filter(Boolean),
       recentTitles: recentProducts.map((item) => item.title).filter(Boolean),
+      priceBandSampleTitles: priceBands.reduce((acc, band) => {
+        acc[band.band] = band.sampleTitles;
+        return acc;
+      }, {}),
     },
   };
 }
@@ -197,6 +231,23 @@ function writeMarkdown(facts) {
   md += `- Revenue: ${facts.market.totalRevenue}\n`;
   md += `- Sales: ${facts.market.totalSales}\n`;
   md += `- Avg Price: ${facts.market.avgPrice.toFixed(2)}\n\n`;
+  md += `- Avg Rating: ${facts.market.avgRating.toFixed(2)}\n\n`;
+
+  md += '## Brand Landscape (Top 10)\n';
+  md += '| Brand | SKU Count | Revenue | Sales |\n';
+  md += '|---|---:|---:|---:|\n';
+  facts.brandLandscape.topBrands.forEach((brand) => {
+    md += `| ${brand.brand} | ${brand.skuCount} | ${brand.revenue.toFixed(2)} | ${brand.sales.toFixed(2)} |\n`;
+  });
+  md += '\n';
+
+  md += '## Price Band Opportunities\n';
+  md += '| Price Band | SKU Count | Total Revenue | Avg Revenue / SKU |\n';
+  md += '|---|---:|---:|---:|\n';
+  facts.priceBandOpportunities.forEach((band) => {
+    md += `| ${band.band} | ${band.skuCount} | ${band.totalRevenue.toFixed(2)} | ${band.avgRevenuePerSku.toFixed(2)} |\n`;
+  });
+  md += '\n';
 
   md += '## Top Titles\n';
   facts.titleCorpus.topTitles.slice(0, 10).forEach((title) => {
@@ -206,6 +257,15 @@ function writeMarkdown(facts) {
   md += '\n## Recent Titles\n';
   facts.titleCorpus.recentTitles.slice(0, 10).forEach((title) => {
     md += `- ${title}\n`;
+  });
+
+  md += '\n## Price Band Sample Titles\n';
+  Object.entries(facts.titleCorpus.priceBandSampleTitles).forEach(([band, titles]) => {
+    if (!titles.length) return;
+    md += `### ${band}\n`;
+    titles.forEach((title) => {
+      md += `- ${title}\n`;
+    });
   });
 
   return md;
