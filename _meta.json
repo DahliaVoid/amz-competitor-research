@@ -1,0 +1,8 @@
+{
+  "ownerId": "chibi_hagane",
+  "slug": "competitor-research",
+  "version": "1.0.0",
+  "publishedAt": 1744099200000,
+  "description": "Amazon竞品调研分析工具 - 从CSV自动生成竞品分析报告",
+  "tags": ["amazon", "competitor-analysis", "csv", "pdf", "research"]
+}
