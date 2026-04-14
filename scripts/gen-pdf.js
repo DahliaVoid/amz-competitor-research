@@ -49,44 +49,47 @@ function resolveChartFile(baseName) {
 
 function buildChartsHtml() {
   const chartConfigs = [
-    { file: 'chart1_global_market.png', title: '附图 1：图表 1', alt: 'Chart 1' },
-    { file: 'chart2_seasonal.png', title: '附图 2：图表 2', alt: 'Chart 2' },
-    { file: 'chart3_projection.png', title: '附图 3：图表 3', alt: 'Chart 3' },
-    { file: 'chart4_market_share.png', title: '附图 4：图表 4', alt: 'Chart 4' },
+    {
+      file: 'chart1_global_market.png',
+      title: '附图 1：全球市场规模 & YOY 增长率',
+      caption: '数据来源：Grand View Research, GM Insights | 单位：USD Billions',
+      insight: '2024年市场规模激增60%（$25.4B），2025进入平稳增长期（9.3% YOY）。选品应提前2-3个月布局Q4旺季。',
+      alt: 'Global Market',
+    },
+    {
+      file: 'chart2_seasonal.png',
+      title: '附图 2：季节性销量分布（Amazon US）',
+      caption: '数据来源：Shelftrend, Statista | 基准线：全年平均水平=100',
+      insight: 'Q4（10-12月）绝对旺季，12月峰值指数140。建议9月底前完成Q4备货入库。',
+      alt: 'Seasonal Pattern',
+    },
+    {
+      file: 'chart3_projection.png',
+      title: '附图 3：市场未来预估（2025-2030）',
+      caption: '数据来源：CredenResearch (US), Grand View Research (Global) | Global CAGR: 8.3% | US CAGR: 12.5%',
+      insight: '美国市场CAGR 12.5%跑赢全球8.3%。2027-2028是入场窗口期，竞争格局稳定。',
+      alt: 'Projections',
+    },
+    {
+      file: 'chart4_market_share.png',
+      title: '附图 4：TOP 品牌市场份额',
+      caption: '数据来源：本次调研 CSV 数据 | 品牌按月销售额加权估算',
+      insight: 'Charmast+VRURC双头部占36%，CR10仅78%，长尾空间22%。Anker品牌溢价显著（留评率4.46%）。',
+      alt: 'Brand Share',
+    },
   ];
 
-  const metadataPath = path.join(DIR.charts, 'metadata.json');
-  let metadata = {};
-  if (fs.existsSync(metadataPath)) {
-    try {
-      metadata = JSON.parse(fs.readFileSync(metadataPath, 'utf8')) || {};
-    } catch (error) {
-      console.warn(`Invalid chart metadata JSON: ${metadataPath}`);
-    }
-  }
-
   return chartConfigs
-    .map((defaultChart) => {
-      const chart = {
-        ...defaultChart,
-        ...(metadata[defaultChart.file] || {}),
-      };
+    .map((chart) => {
       const chartPath = resolveChartFile(chart.file);
       if (!chartPath) return '';
-
-      const captionHtml = chart.caption
-        ? `<p class="chart-caption">${renderInline(chart.caption)}</p>`
-        : '';
-      const insightHtml = chart.insight
-        ? `<div class="highlight-box"><strong>洞察：</strong>${renderInline(chart.insight)}</div>`
-        : '';
 
       return `
 <div class="chart-section">
 <h2>${renderInline(chart.title)}</h2>
 <img src="${pathToFileURL(chartPath).href}" alt="${escapeHtml(chart.alt)}">
-${captionHtml}
-${insightHtml}
+<p class="chart-caption">${renderInline(chart.caption)}</p>
+<div class="highlight-box"><strong>洞察：</strong>${renderInline(chart.insight)}</div>
 </div>`;
     })
     .filter(Boolean)
