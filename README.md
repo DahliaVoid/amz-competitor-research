@@ -73,33 +73,14 @@ node scripts/gen-pdf.js <md路径> --charts
 - `评分`
 - `上架天数`
 
-也兼容常见英文列名（如 `Brand` / `Title` / `Price` / `Monthly Revenue` / `Monthly Sales` / `Days Listed` / `Rating`）。
-
 ## 依赖
 
 - Node.js
 - Python + `weasyprint`（用于 PDF 导出）
 - 中文字体（推荐 `Noto Sans SC`、`Microsoft YaHei`、`SimHei` 或 `文泉驿微米黑`）
 
-建议在新环境先安装依赖：
-
-```bash
-pip install -r requirements.txt
-```
-
 ## 说明
 
 - 当前主流程只依赖 `scripts/` 下两个脚本。
 - `data/`、`reports/`、`charts/` 是输出目录，首次清理后可能为空。
 - `charts/` 下如果存在 `chart1...chart4` 图表，`gen-pdf.js --charts` 会自动插入最新匹配文件。
-- 可选创建 `charts/metadata.json` 覆盖图表标题/说明，避免在脚本中硬编码类目文案。例如：
-
-```json
-{
-  "chart1_global_market.png": {
-    "title": "附图 1：市场规模趋势",
-    "caption": "数据来源：XXX",
-    "insight": "这里写该类目专属洞察"
-  }
-}
-```
