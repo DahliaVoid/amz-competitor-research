@@ -7,7 +7,7 @@ Amazon 竞品调研分析工具，用于把卖家精灵或同类 CSV 导出转�
 上传 CSV 后直接告诉 agent：
 
 ```text
-分析这个竞品数据
+调用本地amz-competitor-research skill做一个市场调研
 ```
 
 ## 核心目录
