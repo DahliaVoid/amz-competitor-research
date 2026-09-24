@@ -1,0 +1,8 @@
+{
+  "ownerId": "DahliaVoid",
+  "slug": "amz-competitor-research",
+  "version": "2.0.0",
+  "publishedAt": 1744099200000,
+  "description": "Amazon竞品调研 - 从商品维度CSV生成事实层(facts.json)、趋势层与HTML调研报告，缺列/整列为空一律n/a不补0",
+  "tags": ["amazon", "competitor-analysis", "csv", "html", "research"]
+}
